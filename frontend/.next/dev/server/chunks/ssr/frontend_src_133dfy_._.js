@@ -193,6 +193,7 @@ function QueueMonitor() {
     const [error, setError] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])('');
     // Duplicated config state just to add minor code smell
     const [refreshCount, setRefreshCount] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(0);
+    const isMountedRef = (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useRef"])(false);
     // HARDCODED API BASE URL: Duplicated from AuthContext (code duplication smell)
     const API_BASE_URL = 'http://localhost:5000/api';
     const fetchQueueData = async ()=>{
@@ -204,16 +205,20 @@ function QueueMonitor() {
                 throw new Error('Failed to retrieve active token queue.');
             }
             const data = await res.json();
+            if (!isMountedRef.current) return;
             setTokens(data);
             setError('');
         } catch (err) {
             console.error('Queue poll fetch error:', err);
+            if (!isMountedRef.current) return;
             setError(err.message);
         } finally{
+            if (!isMountedRef.current) return;
             setLoading(false);
         }
     };
     (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useEffect"])(()=>{
+        isMountedRef.current = true;
         // Initial fetch
         fetchQueueData();
         // MEMORY LEAK BUG:
@@ -223,13 +228,17 @@ function QueueMonitor() {
         // dozens of parallel intervals will poll the database, causing memory bloat,
         // state update crashes on unmounted components, and heavy server load.
         const intervalId = setInterval(()=>{
-            console.log(`[POLL] Active Queue Poll #${refreshCount + 1} firing...`);
+            setRefreshCount((prev)=>{
+                console.log(`[POLL] Active Queue Poll #${prev + 1} firing...`);
+                return prev + 1;
+            });
             fetchQueueData();
-            setRefreshCount((prev)=>prev + 1);
         }, 3000);
-    // Junior Developer Note: "Interval created, will run forever to keep dashboard fully synced!"
-    // Missing: return () => clearInterval(intervalId);
-    }, []); // Note that refreshCount dependency is missing too, causing stale closure on log!
+        return ()=>{
+            isMountedRef.current = false;
+            clearInterval(intervalId);
+        };
+    }, []);
     // Group tokens by doctor
     const groupedTokens = tokens.reduce((groups, token)=>{
         const docId = token.doctorId;
@@ -253,7 +262,7 @@ function QueueMonitor() {
         children: [
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$src$2f$components$2f$common$2f$Navbar$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["default"], {}, void 0, false, {
                 fileName: "[project]/frontend/src/app/queue/page.js",
-                lineNumber: 79,
+                lineNumber: 89,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("main", {
@@ -271,12 +280,12 @@ function QueueMonitor() {
                                             className: "h-6 w-6"
                                         }, void 0, false, {
                                             fileName: "[project]/frontend/src/app/queue/page.js",
-                                            lineNumber: 86,
+                                            lineNumber: 96,
                                             columnNumber: 15
                                         }, this)
                                     }, void 0, false, {
                                         fileName: "[project]/frontend/src/app/queue/page.js",
-                                        lineNumber: 85,
+                                        lineNumber: 95,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -286,7 +295,7 @@ function QueueMonitor() {
                                                 children: "Live Public Monitor Board"
                                             }, void 0, false, {
                                                 fileName: "[project]/frontend/src/app/queue/page.js",
-                                                lineNumber: 89,
+                                                lineNumber: 99,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -294,19 +303,19 @@ function QueueMonitor() {
                                                 children: "Real-time physician calling boards. Auto-syncs every 3 seconds."
                                             }, void 0, false, {
                                                 fileName: "[project]/frontend/src/app/queue/page.js",
-                                                lineNumber: 92,
+                                                lineNumber: 102,
                                                 columnNumber: 15
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/frontend/src/app/queue/page.js",
-                                        lineNumber: 88,
+                                        lineNumber: 98,
                                         columnNumber: 13
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/frontend/src/app/queue/page.js",
-                                lineNumber: 84,
+                                lineNumber: 94,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -319,14 +328,14 @@ function QueueMonitor() {
                                                 className: "h-3.5 w-3.5 animate-spin"
                                             }, void 0, false, {
                                                 fileName: "[project]/frontend/src/app/queue/page.js",
-                                                lineNumber: 100,
+                                                lineNumber: 110,
                                                 columnNumber: 15
                                             }, this),
                                             "Auto Refreshing"
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/frontend/src/app/queue/page.js",
-                                        lineNumber: 99,
+                                        lineNumber: 109,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -337,19 +346,19 @@ function QueueMonitor() {
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/frontend/src/app/queue/page.js",
-                                        lineNumber: 103,
+                                        lineNumber: 113,
                                         columnNumber: 13
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/frontend/src/app/queue/page.js",
-                                lineNumber: 98,
+                                lineNumber: 108,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/frontend/src/app/queue/page.js",
-                        lineNumber: 83,
+                        lineNumber: 93,
                         columnNumber: 9
                     }, this),
                     error && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -359,7 +368,7 @@ function QueueMonitor() {
                                 className: "h-5 w-5 shrink-0"
                             }, void 0, false, {
                                 fileName: "[project]/frontend/src/app/queue/page.js",
-                                lineNumber: 112,
+                                lineNumber: 122,
                                 columnNumber: 13
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -368,7 +377,7 @@ function QueueMonitor() {
                                         children: "Sync Error:"
                                     }, void 0, false, {
                                         fileName: "[project]/frontend/src/app/queue/page.js",
-                                        lineNumber: 114,
+                                        lineNumber: 124,
                                         columnNumber: 15
                                     }, this),
                                     " ",
@@ -377,13 +386,13 @@ function QueueMonitor() {
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/frontend/src/app/queue/page.js",
-                                lineNumber: 113,
+                                lineNumber: 123,
                                 columnNumber: 13
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/frontend/src/app/queue/page.js",
-                        lineNumber: 111,
+                        lineNumber: 121,
                         columnNumber: 11
                     }, this),
                     loading && tokens.length === 0 ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -394,18 +403,18 @@ function QueueMonitor() {
                                 children: [
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {}, void 0, false, {
                                         fileName: "[project]/frontend/src/app/queue/page.js",
-                                        lineNumber: 123,
+                                        lineNumber: 133,
                                         columnNumber: 15
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {}, void 0, false, {
                                         fileName: "[project]/frontend/src/app/queue/page.js",
-                                        lineNumber: 124,
+                                        lineNumber: 134,
                                         columnNumber: 15
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/frontend/src/app/queue/page.js",
-                                lineNumber: 122,
+                                lineNumber: 132,
                                 columnNumber: 13
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -413,13 +422,13 @@ function QueueMonitor() {
                                 children: "Loading active token queues..."
                             }, void 0, false, {
                                 fileName: "[project]/frontend/src/app/queue/page.js",
-                                lineNumber: 126,
+                                lineNumber: 136,
                                 columnNumber: 13
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/frontend/src/app/queue/page.js",
-                        lineNumber: 121,
+                        lineNumber: 131,
                         columnNumber: 11
                     }, this) : Object.keys(groupedTokens).length === 0 ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                         className: "glass p-12 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800",
@@ -428,7 +437,7 @@ function QueueMonitor() {
                                 className: "h-12 w-12 text-slate-400 mx-auto animate-bounce"
                             }, void 0, false, {
                                 fileName: "[project]/frontend/src/app/queue/page.js",
-                                lineNumber: 130,
+                                lineNumber: 140,
                                 columnNumber: 13
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("h3", {
@@ -436,7 +445,7 @@ function QueueMonitor() {
                                 children: "No Active Tokens"
                             }, void 0, false, {
                                 fileName: "[project]/frontend/src/app/queue/page.js",
-                                lineNumber: 131,
+                                lineNumber: 141,
                                 columnNumber: 13
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -444,13 +453,13 @@ function QueueMonitor() {
                                 children: "There are currently no patient check-ins registered for today. Use the receptionist portal in the Staff Dashboard to check-in patients."
                             }, void 0, false, {
                                 fileName: "[project]/frontend/src/app/queue/page.js",
-                                lineNumber: 132,
+                                lineNumber: 142,
                                 columnNumber: 13
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/frontend/src/app/queue/page.js",
-                        lineNumber: 129,
+                        lineNumber: 139,
                         columnNumber: 11
                     }, this) : /* Grid of Doctor Calling Boards */ /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                         className: "grid gap-8 md:grid-cols-2 lg:grid-cols-3",
@@ -465,7 +474,7 @@ function QueueMonitor() {
                                                 children: docInfo.doctorName
                                             }, void 0, false, {
                                                 fileName: "[project]/frontend/src/app/queue/page.js",
-                                                lineNumber: 146,
+                                                lineNumber: 156,
                                                 columnNumber: 19
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -473,13 +482,13 @@ function QueueMonitor() {
                                                 children: docInfo.specialization
                                             }, void 0, false, {
                                                 fileName: "[project]/frontend/src/app/queue/page.js",
-                                                lineNumber: 147,
+                                                lineNumber: 157,
                                                 columnNumber: 19
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/frontend/src/app/queue/page.js",
-                                        lineNumber: 145,
+                                        lineNumber: 155,
                                         columnNumber: 17
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -493,7 +502,7 @@ function QueueMonitor() {
                                                         children: "Now Calling"
                                                     }, void 0, false, {
                                                         fileName: "[project]/frontend/src/app/queue/page.js",
-                                                        lineNumber: 156,
+                                                        lineNumber: 166,
                                                         columnNumber: 21
                                                     }, this),
                                                     docInfo.calling ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -503,7 +512,7 @@ function QueueMonitor() {
                                                                 className: "absolute inset-0 bg-radial-gradient(circle, rgba(20,184,166,0.1) 0%, transparent 80%) opacity-0 group-hover:opacity-100 transition-opacity"
                                                             }, void 0, false, {
                                                                 fileName: "[project]/frontend/src/app/queue/page.js",
-                                                                lineNumber: 162,
+                                                                lineNumber: 172,
                                                                 columnNumber: 25
                                                             }, this),
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -514,7 +523,7 @@ function QueueMonitor() {
                                                                 ]
                                                             }, void 0, true, {
                                                                 fileName: "[project]/frontend/src/app/queue/page.js",
-                                                                lineNumber: 163,
+                                                                lineNumber: 173,
                                                                 columnNumber: 25
                                                             }, this),
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -525,13 +534,13 @@ function QueueMonitor() {
                                                                 ]
                                                             }, void 0, true, {
                                                                 fileName: "[project]/frontend/src/app/queue/page.js",
-                                                                lineNumber: 166,
+                                                                lineNumber: 176,
                                                                 columnNumber: 25
                                                             }, this)
                                                         ]
                                                     }, void 0, true, {
                                                         fileName: "[project]/frontend/src/app/queue/page.js",
-                                                        lineNumber: 160,
+                                                        lineNumber: 170,
                                                         columnNumber: 23
                                                     }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                                                         className: "bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800/80 p-6 rounded-2xl text-center shadow-inner",
@@ -541,7 +550,7 @@ function QueueMonitor() {
                                                                 children: "Idle"
                                                             }, void 0, false, {
                                                                 fileName: "[project]/frontend/src/app/queue/page.js",
-                                                                lineNumber: 172,
+                                                                lineNumber: 182,
                                                                 columnNumber: 25
                                                             }, this),
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -549,19 +558,19 @@ function QueueMonitor() {
                                                                 children: "No active patients being called"
                                                             }, void 0, false, {
                                                                 fileName: "[project]/frontend/src/app/queue/page.js",
-                                                                lineNumber: 175,
+                                                                lineNumber: 185,
                                                                 columnNumber: 25
                                                             }, this)
                                                         ]
                                                     }, void 0, true, {
                                                         fileName: "[project]/frontend/src/app/queue/page.js",
-                                                        lineNumber: 171,
+                                                        lineNumber: 181,
                                                         columnNumber: 23
                                                     }, this)
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/frontend/src/app/queue/page.js",
-                                                lineNumber: 155,
+                                                lineNumber: 165,
                                                 columnNumber: 19
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -571,7 +580,7 @@ function QueueMonitor() {
                                                         children: "Queue List"
                                                     }, void 0, false, {
                                                         fileName: "[project]/frontend/src/app/queue/page.js",
-                                                        lineNumber: 184,
+                                                        lineNumber: 194,
                                                         columnNumber: 21
                                                     }, this),
                                                     docInfo.waiting.length > 0 ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -585,54 +594,54 @@ function QueueMonitor() {
                                                                 ]
                                                             }, token.id, true, {
                                                                 fileName: "[project]/frontend/src/app/queue/page.js",
-                                                                lineNumber: 190,
+                                                                lineNumber: 200,
                                                                 columnNumber: 27
                                                             }, this))
                                                     }, void 0, false, {
                                                         fileName: "[project]/frontend/src/app/queue/page.js",
-                                                        lineNumber: 188,
+                                                        lineNumber: 198,
                                                         columnNumber: 23
                                                     }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
                                                         className: "text-xs text-slate-400 dark:text-slate-500 italic block",
                                                         children: "No upcoming patients in queue"
                                                     }, void 0, false, {
                                                         fileName: "[project]/frontend/src/app/queue/page.js",
-                                                        lineNumber: 200,
+                                                        lineNumber: 210,
                                                         columnNumber: 23
                                                     }, this)
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/frontend/src/app/queue/page.js",
-                                                lineNumber: 183,
+                                                lineNumber: 193,
                                                 columnNumber: 19
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/frontend/src/app/queue/page.js",
-                                        lineNumber: 153,
+                                        lineNumber: 163,
                                         columnNumber: 17
                                     }, this)
                                 ]
                             }, docId, true, {
                                 fileName: "[project]/frontend/src/app/queue/page.js",
-                                lineNumber: 140,
+                                lineNumber: 150,
                                 columnNumber: 15
                             }, this))
                     }, void 0, false, {
                         fileName: "[project]/frontend/src/app/queue/page.js",
-                        lineNumber: 138,
+                        lineNumber: 148,
                         columnNumber: 11
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/frontend/src/app/queue/page.js",
-                lineNumber: 81,
+                lineNumber: 91,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/frontend/src/app/queue/page.js",
-        lineNumber: 78,
+        lineNumber: 88,
         columnNumber: 5
     }, this);
 }

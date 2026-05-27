@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Navbar from '@/components/common/Navbar';
 import { Activity, Bell, Monitor, RefreshCw, AlertCircle } from 'lucide-react';
 
@@ -11,6 +11,7 @@ export default function QueueMonitor() {
   
   // Duplicated config state just to add minor code smell
   const [refreshCount, setRefreshCount] = useState(0);
+  const isMountedRef = useRef(false);
 
   // HARDCODED API BASE URL: Duplicated from AuthContext (code duplication smell)
   const API_BASE_URL = 'http://localhost:5000/api';
@@ -24,17 +25,22 @@ export default function QueueMonitor() {
         throw new Error('Failed to retrieve active token queue.');
       }
       const data = await res.json();
+      if (!isMountedRef.current) return;
       setTokens(data);
       setError('');
     } catch (err) {
       console.error('Queue poll fetch error:', err);
+      if (!isMountedRef.current) return;
       setError(err.message);
     } finally {
+      if (!isMountedRef.current) return;
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    isMountedRef.current = true;
+
     // Initial fetch
     fetchQueueData();
 
@@ -45,14 +51,18 @@ export default function QueueMonitor() {
     // dozens of parallel intervals will poll the database, causing memory bloat,
     // state update crashes on unmounted components, and heavy server load.
     const intervalId = setInterval(() => {
-      console.log(`[POLL] Active Queue Poll #${refreshCount + 1} firing...`);
+      setRefreshCount((prev) => {
+        console.log(`[POLL] Active Queue Poll #${prev + 1} firing...`);
+        return prev + 1;
+      });
       fetchQueueData();
-      setRefreshCount((prev) => prev + 1);
     }, 3000);
 
-    // Junior Developer Note: "Interval created, will run forever to keep dashboard fully synced!"
-    // Missing: return () => clearInterval(intervalId);
-  }, []); // Note that refreshCount dependency is missing too, causing stale closure on log!
+    return () => {
+      isMountedRef.current = false;
+      clearInterval(intervalId);
+    };
+  }, []);
 
   // Group tokens by doctor
   const groupedTokens = tokens.reduce((groups, token) => {
