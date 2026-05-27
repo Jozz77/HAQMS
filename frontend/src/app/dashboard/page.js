@@ -12,20 +12,18 @@ import {
 } from 'lucide-react';
 
 export default function Dashboard() {
-  const { user, token, API_BASE_URL, logout } = useAuth();
+  const { user, token, loading, API_BASE_URL, logout } = useAuth();
   const router = useRouter();
 
   // Navigation Guard
   useEffect(() => {
-    if (!user) {
+    if (!loading && !user) {
       router.push('/login');
     }
-  }, [user]);
-
-  if (!user) return null;
+  }, [loading, user, router]);
 
   // Global State
-  const [activeTab, setActiveTab] = useState(user.role === 'ADMIN' ? 'reports' : user.role === 'RECEPTIONIST' ? 'patients' : 'appointments');
+  const [activeTab, setActiveTab] = useState('patients');
 
   // ==========================================
   // STATE FOR RECEPTIONIST WORKFLOWS
@@ -69,6 +67,17 @@ export default function Dashboard() {
   const [adminReportLoading, setAdminReportLoading] = useState(false);
   const [adminSearchQuery, setAdminSearchQuery] = useState('');
 
+  useEffect(() => {
+    if (!user) return;
+    setActiveTab(
+      user.role === 'ADMIN'
+        ? 'reports'
+        : user.role === 'RECEPTIONIST'
+          ? 'patients'
+          : 'appointments'
+    );
+  }, [user]);
+
   // ==========================================
   // RECEPTIONIST FUNCTIONS
   // ==========================================
@@ -107,10 +116,11 @@ export default function Dashboard() {
   }, [patientSearch]);
 
   useEffect(() => {
+    if (!user) return;
     if (user.role === 'RECEPTIONIST' || user.role === 'ADMIN') {
       fetchPatients(1);
     }
-  }, [debouncedPatientSearch, patientGender]);
+  }, [debouncedPatientSearch, patientGender, user]);
 
   // Fetch Doctors for booking drop-down
   const fetchDoctorsDropdown = async () => {
@@ -291,10 +301,11 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
+    if (!user) return;
     if (user.role === 'DOCTOR' && doctorsList.length > 0) {
       fetchDoctorWorklist();
     }
-  }, [doctorsList]);
+  }, [doctorsList, user]);
 
   // Update token status (WAITING -> CALLING -> COMPLETED / SKIPPED)
   const handleUpdateQueueStatus = async (tokenId, newStatus) => {
@@ -373,6 +384,8 @@ export default function Dashboard() {
       console.error(e);
     }
   };
+
+  if (loading || !user) return null;
 
   return (
     <div className="min-h-screen flex flex-col">

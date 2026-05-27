@@ -505,6 +505,46 @@ Read-Only First: The goal was to resolve a broken 404 route and restore diagnost
 
 ---
 
+### LOG-015 — Logout runtime crash + login route not respecting existing session
+
+| | |
+|---|---|
+| **Category** | Frontend / Auth UX |
+| **Severity** | High |
+| **Status** | Fixed |
+
+#### Issue identified
+
+- Clicking logout from dashboard triggered a runtime error: `Rendered fewer hooks than expected`.
+- Visiting `/login` while already authenticated still showed the login form instead of redirecting to dashboard.
+
+#### Root cause
+
+- `dashboard/page.js` returned early (`if (!user) return null`) before declaring all hooks, so hook order changed between authenticated and unauthenticated renders.
+- `login/page.js` had no guard to redirect authenticated users away from the login page.
+
+#### Fix implemented
+
+- Refactored dashboard auth guard to avoid pre-hook early return and moved render guard to the bottom (`if (loading || !user) return null`), preserving stable hook order.
+- Added null guards in role-dependent effects.
+- Added login-page redirect effect: when auth state is loaded and `user` exists, route to `/dashboard`.
+
+#### Files changed
+
+- `frontend/src/app/dashboard/page.js`
+- `frontend/src/app/login/page.js`
+
+#### Verification
+
+- Logout no longer triggers hook-order runtime error.
+- Navigating to `/login` with an active session redirects to `/dashboard`.
+
+#### Your approach & reasoning
+
+Preserving hook order was the safest immediate fix because the crash was caused by React’s hook contract being violated, not by business logic itself. Reordering guards to keep hooks consistent removes the runtime failure with minimal blast radius and no behavior regression. A full component split is still a good long-term refactor, but doing it in the same step would introduce unnecessary risk while solving a production-blocking bug.
+
+---
+
 ## Optimizations performed
 
 _Updated as Challenge 2 changes landed._
