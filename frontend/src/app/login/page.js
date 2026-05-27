@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import { popAuthFlashMessage, useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { User, Lock, Activity, Eye, EyeOff } from 'lucide-react';
@@ -15,6 +15,11 @@ export default function Login() {
   
   // Local validation issues
   const [validationError, setValidationError] = useState('');
+
+  useEffect(() => {
+    const msg = popAuthFlashMessage();
+    if (msg) setValidationError(msg);
+  }, []);
 
   useEffect(() => {
     if (!loading && user) {

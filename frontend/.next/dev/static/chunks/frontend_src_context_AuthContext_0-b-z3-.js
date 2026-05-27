@@ -5,6 +5,8 @@
 __turbopack_context__.s([
     "AuthProvider",
     ()=>AuthProvider,
+    "popAuthFlashMessage",
+    ()=>popAuthFlashMessage,
     "useAuth",
     ()=>useAuth
 ]);
@@ -17,6 +19,12 @@ var _s = __turbopack_context__.k.signature(), _s1 = __turbopack_context__.k.sign
 ;
 ;
 const AuthContext = /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["createContext"])();
+const FLASH_KEY = 'haqms_flash_message';
+function setFlashMessage(message) {
+    try {
+        sessionStorage.setItem(FLASH_KEY, message);
+    } catch  {}
+}
 const AuthProvider = ({ children })=>{
     _s();
     const [user, setUser] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])(null);
@@ -30,19 +38,84 @@ const AuthProvider = ({ children })=>{
     const API_BASE_URL = 'http://localhost:5000/api';
     (0, __TURBOPACK__imported__module__$5b$project$5d2f$frontend$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useEffect"])({
         "AuthProvider.useEffect": ()=>{
-            // Check for stored token and user on initialization
-            const storedToken = localStorage.getItem('haqms_token');
-            const storedUser = localStorage.getItem('haqms_user');
-            if (storedToken && storedUser) {
-                try {
-                    setToken(storedToken);
-                    setUser(JSON.parse(storedUser));
-                } catch (e) {
-                    console.error('Failed to parse user details from localStorage', e);
-                    logout();
+            let active = true;
+            const init = {
+                "AuthProvider.useEffect.init": async ()=>{
+                    // Load any cached auth state first (fast UI)
+                    const storedToken = localStorage.getItem('haqms_token');
+                    const storedUser = localStorage.getItem('haqms_user');
+                    if (storedToken && storedUser) {
+                        try {
+                            if (active) {
+                                setToken(storedToken);
+                                setUser(JSON.parse(storedUser));
+                            }
+                        } catch (e) {
+                            console.error('Failed to parse user details from localStorage', e);
+                        }
+                    }
+                    // Then validate/refresh session against backend
+                    try {
+                        // If we have a token, try /me first
+                        if (storedToken) {
+                            const meRes = await fetch(`${API_BASE_URL}/auth/me`, {
+                                headers: {
+                                    Authorization: `Bearer ${storedToken}`
+                                }
+                            });
+                            if (meRes.ok) {
+                                const me = await meRes.json();
+                                if (active) {
+                                    setUser(me);
+                                    localStorage.setItem('haqms_user', JSON.stringify(me));
+                                }
+                                return;
+                            }
+                        }
+                        // Otherwise attempt refresh cookie → new access token
+                        const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
+                            method: 'POST',
+                            credentials: 'include'
+                        });
+                        if (!refreshRes.ok) {
+                            if (storedToken || storedUser) {
+                                setFlashMessage('Your session expired. Please sign in again.');
+                            }
+                            if (active) {
+                                localStorage.removeItem('haqms_token');
+                                localStorage.removeItem('haqms_user');
+                                setToken(null);
+                                setUser(null);
+                            }
+                            return;
+                        }
+                        const refreshData = await refreshRes.json();
+                        const newToken = refreshData?.data?.token;
+                        if (!newToken) return;
+                        const meRes = await fetch(`${API_BASE_URL}/auth/me`, {
+                            headers: {
+                                Authorization: `Bearer ${newToken}`
+                            }
+                        });
+                        if (!meRes.ok) return;
+                        const me = await meRes.json();
+                        if (active) {
+                            setToken(newToken);
+                            setUser(me);
+                            localStorage.setItem('haqms_token', newToken);
+                            localStorage.setItem('haqms_user', JSON.stringify(me));
+                        }
+                    } finally{
+                        if (active) setLoading(false);
+                    }
                 }
-            }
-            setLoading(false);
+            }["AuthProvider.useEffect.init"];
+            init();
+            return ({
+                "AuthProvider.useEffect": ()=>{
+                    active = false;
+                }
+            })["AuthProvider.useEffect"];
         }
     }["AuthProvider.useEffect"], []);
     const login = async (email, password)=>{
@@ -51,6 +124,7 @@ const AuthProvider = ({ children })=>{
         try {
             const response = await fetch(`${API_BASE_URL}/auth/login`, {
                 method: 'POST',
+                credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json'
                 },
@@ -121,6 +195,12 @@ const AuthProvider = ({ children })=>{
         }
     };
     const logout = ()=>{
+        // Best-effort: clear server refresh cookie too
+        fetch(`${API_BASE_URL}/auth/logout`, {
+            method: 'POST',
+            credentials: 'include'
+        }).catch(()=>{});
+        setFlashMessage('You have been signed out.');
         localStorage.removeItem('haqms_token');
         localStorage.removeItem('haqms_user');
         setToken(null);
@@ -141,7 +221,7 @@ const AuthProvider = ({ children })=>{
         children: children
     }, void 0, false, {
         fileName: "[project]/frontend/src/context/AuthContext.js",
-        lineNumber: 116,
+        lineNumber: 191,
         columnNumber: 5
     }, ("TURBOPACK compile-time value", void 0));
 };
@@ -160,6 +240,16 @@ const useAuth = ()=>{
     return context;
 };
 _s1(useAuth, "b9L3QQ+jgeyIrH0NfHrJ8nn7VMU=");
+function popAuthFlashMessage() {
+    try {
+        const msg = sessionStorage.getItem(FLASH_KEY);
+        if (!msg) return '';
+        sessionStorage.removeItem(FLASH_KEY);
+        return msg;
+    } catch  {
+        return '';
+    }
+}
 var _c;
 __turbopack_context__.k.register(_c, "AuthProvider");
 if (typeof globalThis.$RefreshHelpers$ === 'object' && globalThis.$RefreshHelpers !== null) {

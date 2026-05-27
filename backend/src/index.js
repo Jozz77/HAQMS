@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const cookieParser = require('cookie-parser');
 
 // Load environment variables
 dotenv.config();
@@ -15,11 +16,17 @@ const reportRoutes = require('./routes/reports');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Enable CORS for all origins (weak/broad CORS config)
-app.use(cors());
+// Enable CORS (dev-friendly) so refresh cookie can be sent
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+  })
+);
 
 // Body parser
 app.use(express.json());
+app.use(cookieParser());
 
 // Simple request logger
 app.use((req, res, next) => {

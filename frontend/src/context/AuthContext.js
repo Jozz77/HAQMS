@@ -4,6 +4,13 @@ import React, { createContext, useState, useEffect, useContext } from 'react';
 import { useRouter } from 'next/navigation';
 
 const AuthContext = createContext();
+const FLASH_KEY = 'haqms_flash_message';
+
+function setFlashMessage(message) {
+  try {
+    sessionStorage.setItem(FLASH_KEY, message);
+  } catch {}
+}
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -18,20 +25,84 @@ export const AuthProvider = ({ children }) => {
   const API_BASE_URL = 'http://localhost:5000/api';
 
   useEffect(() => {
-    // Check for stored token and user on initialization
-    const storedToken = localStorage.getItem('haqms_token');
-    const storedUser = localStorage.getItem('haqms_user');
+    let active = true;
 
-    if (storedToken && storedUser) {
-      try {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser));
-      } catch (e) {
-        console.error('Failed to parse user details from localStorage', e);
-        logout();
+    const init = async () => {
+      // Load any cached auth state first (fast UI)
+      const storedToken = localStorage.getItem('haqms_token');
+      const storedUser = localStorage.getItem('haqms_user');
+
+      if (storedToken && storedUser) {
+        try {
+          if (active) {
+            setToken(storedToken);
+            setUser(JSON.parse(storedUser));
+          }
+        } catch (e) {
+          console.error('Failed to parse user details from localStorage', e);
+        }
       }
-    }
-    setLoading(false);
+
+      // Then validate/refresh session against backend
+      try {
+        // If we have a token, try /me first
+        if (storedToken) {
+          const meRes = await fetch(`${API_BASE_URL}/auth/me`, {
+            headers: { Authorization: `Bearer ${storedToken}` },
+          });
+          if (meRes.ok) {
+            const me = await meRes.json();
+            if (active) {
+              setUser(me);
+              localStorage.setItem('haqms_user', JSON.stringify(me));
+            }
+            return;
+          }
+        }
+
+        // Otherwise attempt refresh cookie → new access token
+        const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
+          method: 'POST',
+          credentials: 'include',
+        });
+        if (!refreshRes.ok) {
+          if (storedToken || storedUser) {
+            setFlashMessage('Your session expired. Please sign in again.');
+          }
+          if (active) {
+            localStorage.removeItem('haqms_token');
+            localStorage.removeItem('haqms_user');
+            setToken(null);
+            setUser(null);
+          }
+          return;
+        }
+
+        const refreshData = await refreshRes.json();
+        const newToken = refreshData?.data?.token;
+        if (!newToken) return;
+
+        const meRes = await fetch(`${API_BASE_URL}/auth/me`, {
+          headers: { Authorization: `Bearer ${newToken}` },
+        });
+        if (!meRes.ok) return;
+        const me = await meRes.json();
+
+        if (active) {
+          setToken(newToken);
+          setUser(me);
+          localStorage.setItem('haqms_token', newToken);
+          localStorage.setItem('haqms_user', JSON.stringify(me));
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    init();
+    return () => {
+      active = false;
+    };
   }, []);
 
   const login = async (email, password) => {
@@ -40,6 +111,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -105,6 +177,9 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    // Best-effort: clear server refresh cookie too
+    fetch(`${API_BASE_URL}/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
+    setFlashMessage('You have been signed out.');
     localStorage.removeItem('haqms_token');
     localStorage.removeItem('haqms_user');
     setToken(null);
@@ -137,3 +212,14 @@ export const useAuth = () => {
   }
   return context;
 };
+
+export function popAuthFlashMessage() {
+  try {
+    const msg = sessionStorage.getItem(FLASH_KEY);
+    if (!msg) return '';
+    sessionStorage.removeItem(FLASH_KEY);
+    return msg;
+  } catch {
+    return '';
+  }
+}

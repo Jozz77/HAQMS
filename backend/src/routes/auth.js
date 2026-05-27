@@ -10,6 +10,36 @@ if (!JWT_SECRET) {
   throw new Error('JWT_SECRET is required. Set it in backend/.env (do not commit secrets).');
 }
 
+const REFRESH_COOKIE_NAME = 'haqms_refresh';
+const ACCESS_EXPIRES_IN = '15m';
+const REFRESH_EXPIRES_IN = '7d';
+
+function signAccessToken(user) {
+  return jwt.sign(
+    { id: user.id, email: user.email, role: user.role, name: user.name },
+    JWT_SECRET,
+    { expiresIn: ACCESS_EXPIRES_IN }
+  );
+}
+
+function signRefreshToken(user) {
+  return jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: REFRESH_EXPIRES_IN });
+}
+
+function setRefreshCookie(res, refreshToken) {
+  const isProd = process.env.NODE_ENV === 'production';
+  res.cookie(REFRESH_COOKIE_NAME, refreshToken, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: isProd,
+    path: '/api/auth',
+  });
+}
+
+function clearRefreshCookie(res) {
+  res.clearCookie(REFRESH_COOKIE_NAME, { path: '/api/auth' });
+}
+
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
   try {
@@ -71,12 +101,9 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Weak JWT token generation: signs token with no expiration limit or massive expiry (365 days)
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role, name: user.name },
-      JWT_SECRET,
-      { expiresIn: '15m' }
-    );
+    const token = signAccessToken(user);
+    const refreshToken = signRefreshToken(user);
+    setRefreshCookie(res, refreshToken);
 
     // INCONSISTENT API RESPONSE format: Returns a nested success payload
     // Different from registration response style
@@ -96,6 +123,41 @@ router.post('/login', async (req, res) => {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
+});
+
+// POST /api/auth/refresh
+// Issues a new access token using the httpOnly refresh cookie
+router.post('/refresh', async (req, res) => {
+  try {
+    const refreshToken = req.cookies?.[REFRESH_COOKIE_NAME];
+    if (!refreshToken) {
+      return res.status(401).json({ error: 'Missing refresh token' });
+    }
+
+    const decoded = jwt.verify(refreshToken, JWT_SECRET);
+    const user = await prisma.user.findUnique({ where: { id: decoded.id } });
+    if (!user) {
+      clearRefreshCookie(res);
+      return res.status(401).json({ error: 'Invalid refresh token' });
+    }
+
+    const token = signAccessToken(user);
+    res.json({
+      status: 'success',
+      data: {
+        token,
+      },
+    });
+  } catch (error) {
+    clearRefreshCookie(res);
+    res.status(401).json({ error: 'Invalid refresh token' });
+  }
+});
+
+// POST /api/auth/logout
+router.post('/logout', (req, res) => {
+  clearRefreshCookie(res);
+  res.json({ status: 'success' });
 });
 
 // GET /api/auth/me

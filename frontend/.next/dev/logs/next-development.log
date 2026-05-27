@@ -1,13 +1,17 @@
-{"timestamp":"00:00:05.498","source":"Server","level":"LOG","message":""}
-{"timestamp":"00:00:07.395","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
-{"timestamp":"00:00:30.245","source":"Browser","level":"ERROR","message":"uncaughtError: Error: Rendered fewer hooks than expected. This may be caused by an accidental early return statement."}
-{"timestamp":"00:00:30.256","source":"Server","level":"ERROR","message":"[browser] \"\\u001b[31mUncaught Error: Rendered fewer hooks than expected. This may be caused by an accidental early return statement.\\u001b[39m\""}
-{"timestamp":"00:00:30.257","source":"Browser","level":"ERROR","message":"\u001b[31mUncaught Error: Rendered fewer hooks than expected. This may be caused by an accidental early return statement.\u001b[39m"}
-{"timestamp":"00:01:47.504","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
-{"timestamp":"00:01:54.388","source":"Browser","level":"ERROR","message":"uncaughtError: Error: Rendered fewer hooks than expected. This may be caused by an accidental early return statement."}
-{"timestamp":"00:01:54.390","source":"Server","level":"ERROR","message":"[browser] \"\\u001b[31mUncaught Error: Rendered fewer hooks than expected. This may be caused by an accidental early return statement.\\u001b[39m\""}
-{"timestamp":"00:01:54.391","source":"Browser","level":"ERROR","message":"\u001b[31mUncaught Error: Rendered fewer hooks than expected. This may be caused by an accidental early return statement.\u001b[39m"}
-{"timestamp":"00:05:23.054","source":"Server","level":"LOG","message":"✓ Compiled in 1515ms"}
-{"timestamp":"00:05:23.150","source":"Server","level":"WARN","message":"⚠ Fast Refresh had to perform a full reload due to a runtime error."}
-{"timestamp":"00:05:24.646","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
-{"timestamp":"00:05:32.837","source":"Server","level":"LOG","message":"✓ Compiled in 249ms"}
+{"timestamp":"00:00:03.639","source":"Server","level":"LOG","message":""}
+{"timestamp":"00:00:05.121","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:03:50.898","source":"Server","level":"LOG","message":"✓ Compiled in 3.1s"}
+{"timestamp":"00:03:50.965","source":"Server","level":"WARN","message":"⚠ Fast Refresh had to perform a full reload when ./frontend/src/context/AuthContext.js changed. Read more: https://nextjs.org/docs/messages/fast-refresh-reload"}
+{"timestamp":"00:03:53.447","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:03:54.829","source":"Browser","level":"ERROR","message":"Doctors API returned non-array payload: {\"error\":\"Invalid token.\"}"}
+{"timestamp":"00:03:58.892","source":"Server","level":"LOG","message":"✓ Compiled in 1292ms"}
+{"timestamp":"00:03:59.719","source":"Server","level":"WARN","message":"⚠ Fast Refresh had to perform a full reload when ./frontend/src/context/AuthContext.js changed. Read more: https://nextjs.org/docs/messages/fast-refresh-reload"}
+{"timestamp":"00:04:02.527","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:06:20.967","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:06:43.506","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:09:55.187","source":"Server","level":"LOG","message":"✓ Compiled in 880ms"}
+{"timestamp":"00:11:02.274","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}
+{"timestamp":"00:11:02.527","source":"Browser","level":"ERROR","message":"Doctors API returned non-array payload: {\"error\":\"Invalid token.\"}"}
+{"timestamp":"00:11:02.615","source":"Server","level":"ERROR","message":"[browser] \"Doctors API returned non-array payload:\" \"{ error: \\u001b[32m'Invalid token.'\\u001b[39m }\" \"\\n\\u001b[31m    at fetchDoctorsDropdown (src/app/dashboard/page.js:172:17)\\u001b[39m\\n  170 |       } else {\\n  171 |         // Preserve last valid doctor list when API returns an error payload/object.\\n> 172 |         console.error('Doctors API returned non-array payload:', data);\\n      |                 ^\\n  173 |       }\\n  174 |     } catch (e) {\\n  175 |       console.error(e);\" \"\\u001b[2m(src/app/dashboard/page.js:172:17)\\u001b[22m\""}
+{"timestamp":"00:11:02.616","source":"Browser","level":"ERROR","message":"Doctors API returned non-array payload: {} \"\\n\\u001b[31m    at fetchDoctorsDropdown (src/app/dashboard/page.js:172:17)\\u001b[39m\\n  170 |       } else {\\n  171 |         // Preserve last valid doctor list when API returns an error payload/object.\\n> 172 |         console.error('Doctors API returned non-array payload:', data);\\n      |                 ^\\n  173 |       }\\n  174 |     } catch (e) {\\n  175 |       console.error(e);\" \"\\u001b[2m(src/app/dashboard/page.js:172:17)\\u001b[22m\""}
+{"timestamp":"00:11:21.937","source":"Browser","level":"INFO","message":"%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"}

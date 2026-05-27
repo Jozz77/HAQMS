@@ -89,13 +89,18 @@ router.post('/', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Name, phoneNumber, age, and gender are required.' });
     }
 
+    const normalizedGender = String(gender).toUpperCase();
+    if (!['MALE', 'FEMALE', 'OTHER'].includes(normalizedGender)) {
+      return res.status(400).json({ error: 'Invalid gender value. Use Male, Female, or Other.' });
+    }
+
     const patient = await prisma.patient.create({
       data: {
         name,
         email: email || null,
         phoneNumber,
         age: parseInt(age),
-        gender,
+        gender: normalizedGender,
         medicalHistory: medicalHistory || null, // Can be null, will crash UI without optional chaining
       },
     });

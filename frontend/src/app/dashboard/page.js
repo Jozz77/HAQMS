@@ -61,11 +61,21 @@ export default function Dashboard() {
   const [selectedPatientHistory, setSelectedPatientHistory] = useState(null);
 
   // ==========================================
+  // STATE FOR APPOINTMENT FEED (ADMIN/RECEPTIONIST)
+  // ==========================================
+  const [appointmentsFeed, setAppointmentsFeed] = useState([]);
+  const [appointmentsFeedLoading, setAppointmentsFeedLoading] = useState(false);
+  const [appointmentsFeedError, setAppointmentsFeedError] = useState('');
+
+  // ==========================================
   // STATE FOR ADMIN WORKFLOWS
   // ==========================================
   const [adminReportData, setAdminReportData] = useState(null);
   const [adminReportLoading, setAdminReportLoading] = useState(false);
   const [adminSearchQuery, setAdminSearchQuery] = useState('');
+  const [physiciansHasSearched, setPhysiciansHasSearched] = useState(false);
+  const [physiciansSearchLoading, setPhysiciansSearchLoading] = useState(false);
+  const safeDoctorsList = Array.isArray(doctorsList) ? doctorsList : [];
 
   useEffect(() => {
     if (!user) return;
@@ -122,22 +132,62 @@ export default function Dashboard() {
     }
   }, [debouncedPatientSearch, patientGender, user]);
 
+  // Fetch a lightweight appointment feed for the scheduling tab.
+  // Used by ADMIN/RECEPTIONIST to confirm the appointment they just booked.
+  const fetchAppointmentsFeed = async (status = 'PENDING') => {
+    if (!token) return;
+    setAppointmentsFeedLoading(true);
+    setAppointmentsFeedError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/appointments?status=${encodeURIComponent(status)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok && data.success && Array.isArray(data.appointments)) {
+        setAppointmentsFeed(data.appointments);
+      } else {
+        setAppointmentsFeed([]);
+        setAppointmentsFeedError(data.error || 'Failed to load appointments.');
+      }
+    } catch (e) {
+      setAppointmentsFeed([]);
+      setAppointmentsFeedError(e.message || 'Failed to load appointments.');
+    } finally {
+      setAppointmentsFeedLoading(false);
+    }
+  };
+
   // Fetch Doctors for booking drop-down
   const fetchDoctorsDropdown = async () => {
+    if (!token) return;
     try {
       const res = await fetch(`${API_BASE_URL}/doctors`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
-      setDoctorsList(data);
+      if (Array.isArray(data)) {
+        setDoctorsList(data);
+      } else {
+        // Preserve last valid doctor list when API returns an error payload/object.
+        console.error('Doctors API returned non-array payload:', data);
+      }
     } catch (e) {
       console.error(e);
     }
   };
 
   useEffect(() => {
+    if (!token) return;
     fetchDoctorsDropdown();
-  }, []);
+  }, [token, API_BASE_URL]);
+
+  useEffect(() => {
+    if (!user) return;
+    if (activeTab !== 'book') return;
+    if (user.role === 'RECEPTIONIST' || user.role === 'ADMIN') {
+      fetchAppointmentsFeed();
+    }
+  }, [activeTab, user, token, API_BASE_URL]);
 
   // Handle Patient Registration
   const handleRegisterPatient = async (e) => {
@@ -216,7 +266,11 @@ export default function Dashboard() {
       if (res.ok) {
         setBookingMessage('Success: Appointment booked successfully!');
         setBookingReason('');
-        if (user.role === 'DOCTOR') fetchDoctorWorklist();
+        if (user.role === 'DOCTOR') {
+          fetchDoctorWorklist();
+        } else {
+          fetchAppointmentsFeed();
+        }
       } else {
         setBookingMessage(`Error: ${data.error || 'Failed to book'}`);
       }
@@ -276,7 +330,8 @@ export default function Dashboard() {
     if (user.role !== 'DOCTOR') return;
     try {
       // Find matching doctor from doctors dropdown using user ID link
-      const matchedDoc = doctorsList.find(d => d.userId === user.id);
+      const matchedDoc =
+        safeDoctorsList.find((d) => d.userId === user.id) || safeDoctorsList[0];
       if (!matchedDoc) return;
 
       // 1. Fetch appointments for this doctor (N+1 database queries triggers inside server)
@@ -302,10 +357,10 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!user) return;
-    if (user.role === 'DOCTOR' && doctorsList.length > 0) {
+    if (user.role === 'DOCTOR' && safeDoctorsList.length > 0) {
       fetchDoctorWorklist();
     }
-  }, [doctorsList, user]);
+  }, [safeDoctorsList, user]);
 
   // Update token status (WAITING -> CALLING -> COMPLETED / SKIPPED)
   const handleUpdateQueueStatus = async (tokenId, newStatus) => {
@@ -371,6 +426,15 @@ export default function Dashboard() {
   // Search Doctors (SQL Injection vulnerable API!)
   const searchPhysiciansAdmin = async () => {
     try {
+      const q = adminSearchQuery.trim();
+      if (!q) {
+        setPhysiciansHasSearched(false);
+        await fetchDoctorsDropdown();
+        return;
+      }
+
+      setPhysiciansHasSearched(true);
+      setPhysiciansSearchLoading(true);
       const res = await fetch(`${API_BASE_URL}/doctors?search=${adminSearchQuery}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -378,14 +442,49 @@ export default function Dashboard() {
       if (Array.isArray(data)) {
         setDoctorsList(data);
       } else {
-        alert(`API Error: ${data.sqlMessage || data.error}`);
+        alert(`API Error: ${data.error || 'Unable to search physicians right now.'}`);
       }
     } catch (e) {
       console.error(e);
+      alert('Unable to search physicians right now.');
+    } finally {
+      setPhysiciansSearchLoading(false);
     }
   };
 
-  if (loading || !user) return null;
+  if (loading) return null;
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+        <main className="flex-1 max-w-xl w-full mx-auto p-6 sm:p-8 flex items-center">
+          <div className="glass p-6 rounded-2xl border border-slate-200 dark:border-slate-800 w-full">
+            <h1 className="text-lg font-extrabold text-slate-800 dark:text-slate-100">
+              Session expired
+            </h1>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400 font-semibold leading-6">
+              Your session is no longer valid. Please sign in again to continue.
+            </p>
+            <div className="mt-5 flex gap-3">
+              <button
+                onClick={() => router.push('/login')}
+                className="glow-btn px-4 py-2 bg-teal-600 text-white font-extrabold text-xs rounded-lg hover:bg-teal-700 transition-colors"
+              >
+                Go to Login
+              </button>
+              <Link
+                href="/"
+                className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-500/5 transition-colors"
+              >
+                Back to Home
+              </Link>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -714,7 +813,7 @@ export default function Dashboard() {
                     className="block w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white/50 dark:bg-slate-900/50 rounded-lg text-slate-900 dark:text-slate-100 text-sm focus:outline-none"
                   >
                     <option value="">-- Choose Physician --</option>
-                    {doctorsList.map(d => (
+                    {safeDoctorsList.map(d => (
                       <option key={d.id} value={d.id}>{d.name} - {d.specialization} (${d.consultationFee})</option>
                     ))}
                   </select>
@@ -749,6 +848,67 @@ export default function Dashboard() {
                   Book Appointment Slot
                 </button>
               </form>
+
+              <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Scheduled Appointments (Pending)
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => fetchAppointmentsFeed()}
+                    disabled={appointmentsFeedLoading}
+                    className="px-3 py-1 rounded border border-slate-200 dark:border-slate-700 hover:bg-teal-500/10 disabled:opacity-50 text-xs font-semibold"
+                  >
+                    {appointmentsFeedLoading ? 'Refreshing...' : 'Refresh'}
+                  </button>
+                </div>
+
+                {appointmentsFeedError ? (
+                  <p className="text-xs text-rose-500 font-semibold">{appointmentsFeedError}</p>
+                ) : appointmentsFeedLoading ? (
+                  <p className="text-xs text-slate-400">Loading appointments...</p>
+                ) : appointmentsFeed.length === 0 ? (
+                  <p className="text-xs text-slate-500">No pending appointments found.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-xs text-left">
+                      <thead>
+                        <tr className="text-slate-400 uppercase tracking-widest text-xxs font-bold">
+                          <th className="py-2">Time</th>
+                          <th className="py-2">Patient</th>
+                          <th className="py-2">Doctor</th>
+                          <th className="py-2">Reason</th>
+                          <th className="py-2">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {appointmentsFeed.slice(0, 10).map((app) => (
+                          <tr key={app.id} className="hover:bg-slate-500/5 transition-colors">
+                            <td className="py-2 font-mono font-semibold text-slate-700 dark:text-slate-300">
+                              {new Date(app.appointmentDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </td>
+                            <td className="py-2 text-slate-600 dark:text-slate-400">
+                              {app.patient?.name || 'Unknown patient'}
+                            </td>
+                            <td className="py-2 text-slate-600 dark:text-slate-400">
+                              {app.doctor?.name || 'Unknown doctor'}
+                            </td>
+                            <td className="py-2 text-slate-600 dark:text-slate-400">
+                              {app.reason || 'N/A'}
+                            </td>
+                            <td className="py-2">
+                              <span className="px-2 py-0.5 rounded text-xxs font-extrabold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                {app.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Quick Walkin Checkin Token Board */}
@@ -788,7 +948,7 @@ export default function Dashboard() {
                       className="block w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white/50 dark:bg-slate-900/50 rounded-lg text-slate-900 dark:text-slate-100 text-sm focus:outline-none"
                     >
                       <option value="">-- Choose Physician --</option>
-                      {doctorsList.map(d => (
+                      {safeDoctorsList.map(d => (
                         <option key={d.id} value={d.id}>{d.name} ({d.specialization})</option>
                       ))}
                     </select>
@@ -865,7 +1025,12 @@ export default function Dashboard() {
                               <>
                                 <button
                                   onClick={() => {
-                                    const matchedDoc = doctorsList.find(d => d.userId === user.id);
+                                    const matchedDoc =
+                                      safeDoctorsList.find((d) => d.userId === user.id) || safeDoctorsList[0];
+                                    if (!matchedDoc) {
+                                      setCheckinMessage('Error check-in: No doctor profile available.');
+                                      return;
+                                    }
                                     handleQueueCheckin(app.patientId, matchedDoc.id, app.id);
                                   }}
                                   className="text-xxs px-2.5 py-1 rounded bg-teal-500/10 text-teal-600 dark:text-teal-400 font-extrabold hover:bg-teal-500 hover:text-white transition-colors"
@@ -1123,7 +1288,7 @@ export default function Dashboard() {
                 Staff Physicians Registry Lookup
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">
-                Database lookup for credentials. Uses a raw SQL interpolation backend query.
+                Search and review physician profiles by name.
               </p>
             </div>
 
@@ -1136,51 +1301,66 @@ export default function Dashboard() {
                   type="text"
                   value={adminSearchQuery}
                   onChange={(e) => setAdminSearchQuery(e.target.value)}
-                  placeholder="Enter physician name search criteria (raw syntax supported)..."
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      searchPhysiciansAdmin();
+                    }
+                  }}
+                  placeholder="Enter physician name..."
                   className="block w-full pl-9 pr-3 py-2 border border-slate-300 dark:border-slate-700 bg-white/50 dark:bg-slate-900/50 rounded-lg text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm"
                 />
               </div>
 
               <button
                 onClick={searchPhysiciansAdmin}
+                disabled={physiciansSearchLoading}
                 className="glow-btn px-5 py-2 bg-slate-900 text-white dark:bg-teal-500 dark:text-slate-950 font-bold text-xs rounded-lg hover:bg-slate-800 dark:hover:bg-teal-400 transition-colors"
               >
-                Execute SQL Query
+                {physiciansSearchLoading ? 'Searching...' : 'Search Physicians'}
               </button>
             </div>
 
-            <div className="p-3 bg-rose-500/10 text-rose-500 text-xs rounded-lg border border-rose-500/20 font-semibold leading-5 flex gap-3">
-              <ShieldAlert className="h-5 w-5 shrink-0" />
+            <div className="p-3 bg-teal-500/10 text-teal-700 dark:text-teal-300 text-xs rounded-lg border border-teal-500/20 font-semibold leading-5 flex gap-3">
+              <CheckCircle className="h-5 w-5 shrink-0" />
               <div>
-                <strong>SQL Vulnerability alert:</strong> This search executes raw interpolation: 
-                <code className="block bg-black/10 dark:bg-black/30 p-1.5 rounded mt-1 font-mono">
-                  SELECT * FROM &quot;Doctor&quot; WHERE name ILIKE &apos;%&#123;query&#125;%&apos;
-                </code>
-                Can be audited by inputting standard SQL injection strings to leak full user login lists.
+                <strong>Security update:</strong> Physician search now uses parameterized backend queries.
+                Results are filtered safely by name.
               </div>
             </div>
 
             {/* Doctors Result List */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {doctorsList.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-500/5 flex flex-col justify-between"
-                >
-                  <div>
-                    <span className="inline-flex px-2 py-0.5 rounded text-xxs font-extrabold tracking-wide uppercase bg-teal-500/10 text-teal-600 dark:text-teal-400 mb-2">
-                      {doc.department}
-                    </span>
-                    <h4 className="font-extrabold text-slate-800 dark:text-slate-100">{doc.name}</h4>
-                    <p className="text-xs text-slate-400 mt-0.5">{doc.specialization}</p>
+            {physiciansHasSearched && safeDoctorsList.length === 0 ? (
+              <div className="p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-500/5 text-center">
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                  No physicians matched “{adminSearchQuery.trim()}”.
+                </p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Try a shorter name, correct spelling, or clear the search to see all physicians.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {safeDoctorsList.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-500/5 flex flex-col justify-between"
+                  >
+                    <div>
+                      <span className="inline-flex px-2 py-0.5 rounded text-xxs font-extrabold tracking-wide uppercase bg-teal-500/10 text-teal-600 dark:text-teal-400 mb-2">
+                        {doc.department}
+                      </span>
+                      <h4 className="font-extrabold text-slate-800 dark:text-slate-100">{doc.name}</h4>
+                      <p className="text-xs text-slate-400 mt-0.5">{doc.specialization}</p>
+                    </div>
+                    <div className="mt-6 pt-3 border-t border-slate-200 dark:border-slate-800/80 flex justify-between items-center text-xs font-semibold text-slate-500">
+                      <span>Exp: {doc.experience} yrs</span>
+                      <span className="font-bold text-teal-600 dark:text-teal-400">Fee: ${doc.consultationFee}</span>
+                    </div>
                   </div>
-                  <div className="mt-6 pt-3 border-t border-slate-200 dark:border-slate-800/80 flex justify-between items-center text-xs font-semibold text-slate-500">
-                    <span>Exp: {doc.experience} yrs</span>
-                    <span className="font-bold text-teal-600 dark:text-teal-400">Fee: ${doc.consultationFee}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </main>
