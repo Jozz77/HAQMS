@@ -18,10 +18,104 @@ enum Role {
   DOCTOR
 }
 
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum AppointmentStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum QueueStatus {
+  WAITING
+  CALLING
+  COMPLETED
+  SKIPPED
+}
+
 model User {
   id       Int    @id @default(autoincrement())
   email    String @unique
   name     String
   password String
   role     Role   @default(RECEPTIONIST)
+}
+
+model Patient {
+  id             String        @id @default(cuid())
+  name           String
+  email          String?
+  phoneNumber    String
+  age            Int
+  gender         Gender
+  medicalHistory String?
+  createdAt      DateTime      @default(now())
+
+  appointments   Appointment[]
+  queueTokens    QueueToken[]
+
+  @@index([gender])
+  @@index([createdAt])
+}
+
+model Doctor {
+  id              String        @id @default(cuid())
+  name            String
+  specialization  String
+  department      String
+  consultationFee Int           @default(0)
+  experience      Int           @default(0)
+  createdAt       DateTime      @default(now())
+
+  appointments    Appointment[]
+  queueTokens     QueueToken[]
+
+  @@index([department])
+  @@index([specialization])
+}
+
+model Appointment {
+  id              String            @id @default(cuid())
+  patientId       String
+  doctorId        String
+  appointmentDate DateTime
+  reason          String
+  status          AppointmentStatus @default(PENDING)
+  createdAt       DateTime          @default(now())
+
+  patient         Patient           @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor          Doctor            @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  queueTokens     QueueToken[]
+
+  @@index([doctorId, appointmentDate])
+  @@index([patientId])
+  @@index([status])
+  @@index([doctorId, status, appointmentDate])
+  @@unique([doctorId, appointmentDate])
+}
+
+model QueueToken {
+  id            String      @id @default(cuid())
+  tokenNumber   Int
+  status        QueueStatus @default(WAITING)
+  createdAt     DateTime    @default(now())
+
+  patientId     String
+  doctorId      String
+  appointmentId String?
+
+  patient       Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor        Doctor      @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  @@index([doctorId, createdAt])
+  @@index([patientId, createdAt])
+  @@index([status])
+  @@index([doctorId, status, createdAt])
+  @@index([appointmentId])
 }

@@ -176,7 +176,7 @@ Each entry follows: **Issue → Root cause → Fix → Files changed → Status*
 
 #### Your approach & reasoning
 
-> _[Why did you prioritize fixing credential logging early? Any tradeoffs you considered?]_
+Plain-text passwords in log files instantly break system security. Anyone who has access to the server, monitoring tools, or backup logs would have complete access to user accounts. It's an immediate leak that nullifies encryption efforts elsewhere.
 
 ---
 
@@ -211,7 +211,7 @@ Each entry follows: **Issue → Root cause → Fix → Files changed → Status*
 
 #### Your approach & reasoning
 
-> _[What token lifetime did you consider acceptable for this app and why?]_
+I would shorten it to 15 minutes and use a refresh token strategy. In a busy hospital, staff constantly walk away from shared terminals. A 1-hour window leaves too much time for unauthorized personnel to hijack an active session on an abandoned screen.
 
 ---
 
@@ -238,7 +238,7 @@ Each entry follows: **Issue → Root cause → Fix → Files changed → Status*
 
 #### Your approach & reasoning
 
-> _[Why did you choose parameterized raw SQL here instead of rewriting the endpoint using Prisma `findMany`?]_
+I prefer Prisma `findMany`. It enforces type safety at compile time and inherently prevents SQL injection without relying on developers remembering to parameterize manually. Raw SQL should be reserved only for complex performance optimizations that Prisma can't generate cleanly.
 
 ---
 
@@ -264,17 +264,126 @@ Each entry follows: **Issue → Root cause → Fix → Files changed → Status*
 
 #### Your approach & reasoning
 
-> _[Do you prefer removing this legacy middleware entirely in favor of `authorize('ADMIN')`? Why/why not?]_
+Replace it completely with `authorize('ADMIN')`. Standardizing on a single dynamic middleware eliminates redundant legacy code, makes authorization uniform across the app, and makes it trivial to scale access control when adding or changing roles.
+
+---
+
+### LOG-008 — Missing DB constraint allowed doctor slot double-booking
+
+| | |
+|---|---|
+| **Category** | Database |
+| **Severity** | High |
+| **Status** | Fixed |
+
+#### Issue identified
+
+- The booking flow relied on application-side checks only; the database did not enforce slot uniqueness per doctor.
+- Under concurrent requests, duplicate appointments could be inserted for the same doctor and exact timestamp.
+
+#### Fix implemented
+
+- Added a database-level unique constraint on `Appointment(doctorId, appointmentDate)`.
+- Updated booking error handling to return a clean 400 response on Prisma unique violations (`P2002`).
+
+#### Files changed
+
+- `backend/prisma/schema.prisma`
+- `backend/prisma/migrations/20260527134500_challenge3_constraints_indexes/migration.sql`
+- `backend/src/routes/appointments.js`
+
+#### Verification
+
+- First booking for a test slot succeeded.
+- Second booking for the same doctor and exact slot was blocked.
+
+#### Your approach & reasoning
+
+> _[Why enforce this in DB instead of only API logic?]_
+
+---
+
+### LOG-009 — Missing indices on FK/status filters
+
+| | |
+|---|---|
+| **Category** | Database / Performance |
+| **Severity** | Medium |
+| **Status** | Fixed |
+
+#### Issue identified
+
+- Common filtering paths (doctor+status+date, queue status scans, patient list sort/filter fields) lacked targeted indexes.
+- This leads to slower scans as records grow.
+
+#### Fix implemented
+
+- Added targeted indexes:
+  - `Appointment`: `status`, `doctorId+status+appointmentDate`
+  - `QueueToken`: `status`, `doctorId+status+createdAt`, `appointmentId`
+  - `Patient`: `gender`, `createdAt`
+  - `Doctor`: `department`, `specialization`
+
+#### Files changed
+
+- `backend/prisma/schema.prisma`
+- `backend/prisma/migrations/20260527134500_challenge3_constraints_indexes/migration.sql`
+
+#### Your approach & reasoning
+
+> _[Which queries were you optimizing for first, and why?]_
+
+---
+
+### LOG-010 — In-memory pagination on patients listing
+
+| | |
+|---|---|
+| **Category** | Database / API performance |
+| **Severity** | Medium |
+| **Status** | Fixed |
+
+#### Issue identified
+
+- `GET /api/patients` fetched all rows, filtered in-memory, then sliced for pagination.
+- This becomes expensive and memory-heavy with larger datasets.
+
+#### Fix implemented
+
+- Moved filtering to SQL via Prisma `where` clauses.
+- Replaced in-memory slicing with DB-level pagination (`skip`/`take`).
+- Added `count()` query in parallel to return total pagination metadata.
+
+#### Files changed
+
+- `backend/src/routes/patients.js`
+
+#### Verification
+
+- `GET /api/patients?page=1&limit=1` returned one row with correct `totalPatients` metadata.
+
+#### Your approach & reasoning
+
+> _[Why keep API response shape unchanged while optimizing internals?]_
 
 ---
 
 ## Optimizations performed
 
-_None yet — section updated when we implement perf/DB/React optimizations._
+_Updated as Challenge 2 changes landed._
 
 | ID | Area | What we optimized | Impact | Files |
 |----|------|-------------------|--------|-------|
-| — | — | — | — | — |
+| OPT-001 | Backend (Appointments) | Removed N+1 query pattern by fetching related `patient` and `doctor` via Prisma `include` | Fewer DB round-trips; lower latency under load | `backend/src/routes/appointments.js` |
+| OPT-002 | Backend (Doctors stats) | Parallelized independent queries using `Promise.all` | Reduced endpoint time from sequential sum to max of queries | `backend/src/routes/doctors.js` |
+| OPT-003 | Backend (Reports) | Replaced nested per-doctor sequential counts with `groupBy` aggregations | Avoids per-doctor loops; scales better as doctors grow | `backend/src/routes/reports.js` |
+| OPT-004 | Backend (Queue) | Removed race window and serialized token assignment using Postgres advisory locks inside a transaction | Prevents duplicate token numbers under concurrency | `backend/src/routes/queue.js` |
+
+**Verification (local):** Successfully called the optimized endpoints with an admin JWT:\n
+- `GET /api/appointments` returned `count=1`\n
+- `GET /api/doctors/stats` returned `success=true`\n
+- `GET /api/reports/doctor-stats` returned `data.length=1`\n
+- `POST /api/queue/checkin` returned `tokenNumber=1`\n
 
 ---
 
@@ -291,16 +400,16 @@ _From README evaluation tasks — not yet addressed unless noted._
 
 ### Backend performance & concurrency (Challenge 2)
 
-- [ ] N+1 queries on list endpoints
-- [ ] Sequential async where parallel is possible
-- [ ] Slow nested reports endpoint
-- [ ] Queue check-in token race condition
+- [x] N+1 queries on list endpoints (appointments list)
+- [x] Sequential async where parallel is possible (doctors stats)
+- [x] Slow nested reports endpoint (doctor-stats report)
+- [x] Queue check-in token race condition (token assignment serialization)
 
 ### Database (Challenge 3)
 
-- [ ] Missing constraints (double-booking same slot)
-- [ ] Missing indices on FKs / status filters
-- [ ] In-memory pagination instead of SQL `LIMIT`/`OFFSET`
+- [x] Missing constraints (double-booking same slot)
+- [x] Missing indices on FKs / status filters
+- [x] In-memory pagination instead of SQL `LIMIT`/`OFFSET`
 
 ### Frontend (Challenge 4)
 
